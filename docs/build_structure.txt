@@ -1,0 +1,29 @@
+Project_Root/
+│
+├── data_sheets/                  # Folder containing the raw data CSV files
+│   ├── Atmos_Aggregated.csv
+│   ├── DingTek_Aggregated.csv
+│   ├── (other CSV files)         # Additional data files needed for analysis
+│
+├── scripts/                      # Python or other scripts for data processing and visualization
+│   ├── data_cleaning.py          # Script for cleaning and preprocessing data
+│   ├── data_analysis.py          # Script for analyzing data and generating insights
+│   ├── data_visualization.py     # Script for creating graphs and visualizations
+│   └── main.py                   # Main script to run the program, integrating all functionalities
+│
+├── config/                       # Configuration files for customizable parameters
+│   └── settings.yaml             # Settings for data paths, visualization options, etc.
+│
+├── output/                       # Folder for storing generated visualizations and reports
+│   ├── visualizations/           # Subfolder for storing generated graphs
+│   └── reports/                  # Subfolder for storing reports, if required
+│
+├── docs/                         # Documentation for the project
+│   ├── README.md                 # Overview and setup instructions for the project
+│   └── requirements.txt          # List of dependencies and libraries
+│
+├── notebooks/                    # Jupyter Notebooks for exploratory data analysis (if applicable)
+│   └── data_exploration.ipynb    # Notebook for initial data exploration and prototyping
+│
+└── tests/                        # Folder for unit tests and test cases
+    └── test_data_processing.py   # Test cases for data processing functions
