@@ -6,7 +6,7 @@ Project_Root/
 │   ├── (other CSV files)
 │
 ├── shiny_app/                    # Folder for the Shiny application
-│   └── app.R                     # Main Shiny application code
+│   └── graphzerooneapp.R         # Main Shiny application code
 │
 └── docs/                         # Documentation and project details
     ├── README.md                 # Overview and instructions

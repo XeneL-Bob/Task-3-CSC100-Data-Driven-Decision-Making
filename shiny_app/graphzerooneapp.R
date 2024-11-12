@@ -102,10 +102,10 @@ ui <- fluidPage(
     "))
   ),
   
-  titlePanel(tags$div(class = "data-title", "Offline Data Visualization with Fixed Time Axis")),
+  titlePanel(tags$div(class = "data-title", "Graph 0 One")),
   
   tabsetPanel(
-    tabPanel("Data Visualization",
+    tabPanel("Data Visualisation",
       sidebarLayout(
         sidebarPanel(
           class = "sidebar",
@@ -139,7 +139,7 @@ ui <- fluidPage(
           h3("Summary Statistics"),
           tableOutput("summaryStatsTable"),
           br(), br(),
-          h3("Visualizations of Selected Variables"),
+          h3("Visualisations of Selected Variables"),
           plotlyOutput("overviewPlot1"),
           br(),
           plotlyOutput("overviewPlot2"),
