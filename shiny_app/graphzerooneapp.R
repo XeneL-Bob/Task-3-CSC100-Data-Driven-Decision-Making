@@ -6,7 +6,7 @@ library(plotly)
 library(tidyr)
 library(DT)
 
-# Define mappings for user-friendly labels and column names
+# To Define mappings for user-friendly labels and column names
 column_mappings <- list(
   datetime = c("datetime", "date_time"),
   
@@ -88,7 +88,7 @@ standardize_columns <- function(df) {
   return(df)
 }
 
-# Define the UI for the app with tabs
+# To Define the UI for the app with tabs
 ui <- fluidPage(
   theme = shinytheme("cosmo"),
   
@@ -151,7 +151,7 @@ ui <- fluidPage(
   )
 )
 
-# Define server logic
+# To Define server logic
 server <- function(input, output, session) {
   
   observeEvent(input$resetButton, {
