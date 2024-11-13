@@ -6,7 +6,7 @@ library(plotly)
 library(tidyr)
 library(DT)
 
-# Define mappings for user-friendly labels and column names
+# To Define mappings for user-friendly labels and column names
 column_mappings <- list(
   datetime = c("datetime", "date_time"),
   
@@ -88,7 +88,7 @@ standardize_columns <- function(df) {
   return(df)
 }
 
-# Define the UI for the app with tabs
+# To Define the UI for the app with tabs
 ui <- fluidPage(
   theme = shinytheme("cosmo"),
   
@@ -109,8 +109,6 @@ ui <- fluidPage(
           class = "sidebar",
           fileInput("file", "Upload CSV File", accept = c(".csv")),
           uiOutput("variableSelect"),
-          dateInput("startDate", "Start Date:", value = NULL),
-          dateInput("endDate", "End Date:", value = NULL),
           actionButton("goButton", "Go", class = "btn btn-primary btn-lg"),
           actionButton("resetButton", "Reset", class = "btn btn-secondary btn-lg")
         ),
@@ -150,14 +148,14 @@ ui <- fluidPage(
   )
 )
 
-# Define server logic
+# To Define server logic
 server <- function(input, output, session) {
   
   observeEvent(input$resetButton, {
     updateCheckboxGroupInput(session, "variables", selected = character(0))
     updateCheckboxGroupInput(session, "overviewVariables", selected = character(0))
-    updateDateInput(session, "startDate", value = NULL)
-    updateDateInput(session, "endDate", value = NULL)
+    updateSliderInput(session, "dateRange", value = NULL)
+    updateSliderInput(session, "summaryDateRange", value = NULL)
   })
   
   dataset <- reactive({
@@ -194,23 +192,12 @@ server <- function(input, output, session) {
   output$plot <- renderPlotly({
     req(input$goButton > 0)
     req(input$variables)
+    req(input$dateRange)
     
-    # Get the datetime range and ensure start and end date inputs are valid
-    start_date <- as.POSIXct(input$startDate)
-    end_date <- as.POSIXct(input$endDate)
-    
-    if (is.na(start_date) || is.na(end_date) || start_date >= end_date) {
-      return(NULL)  # If the dates are invalid, do not plot
-    }
-
     selected_vars <- input$variables
-    data <- dataset() %>%
-      filter(datetime >= start_date & datetime <= end_date) %>%
-      select(datetime, all_of(selected_vars))
-    
-    if (nrow(data) == 0) {
-      return(NULL)  # No data to plot
-    }
+    data <- dataset() %>% 
+      filter(as.POSIXct(datetime) >= input$dateRange[1] & as.POSIXct(datetime) <= input$dateRange[2]) %>% 
+      select(all_of(c("datetime", selected_vars)))
     
     data_long <- pivot_longer(data, cols = -datetime, names_to = "Variable", values_to = "Value")
     
