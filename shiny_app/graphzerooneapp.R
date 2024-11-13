@@ -6,7 +6,7 @@ library(plotly)
 library(tidyr)
 library(DT)
 
-# To Define mappings for user-friendly labels and column names
+# Define mappings for user-friendly labels and column names
 column_mappings <- list(
   datetime = c("datetime", "date_time"),
   
@@ -88,7 +88,7 @@ standardize_columns <- function(df) {
   return(df)
 }
 
-# To Define the UI for the app with tabs
+# Define the UI for the app with tabs
 ui <- fluidPage(
   theme = shinytheme("cosmo"),
   
@@ -110,7 +110,8 @@ ui <- fluidPage(
           fileInput("file", "Upload CSV File", accept = c(".csv")),
           uiOutput("variableSelect"),
           actionButton("goButton", "Go", class = "btn btn-primary btn-lg"),
-          actionButton("resetButton", "Reset", class = "btn btn-secondary btn-lg")
+          actionButton("resetButton", "Reset", class = "btn btn-secondary btn-lg"),
+          uiOutput("sliderMenu")
         ),
         
         mainPanel(
@@ -148,7 +149,7 @@ ui <- fluidPage(
   )
 )
 
-# To Define server logic
+# Define server logic
 server <- function(input, output, session) {
   
   observeEvent(input$resetButton, {
@@ -162,6 +163,7 @@ server <- function(input, output, session) {
     req(input$file)
     df <- read.csv(input$file$datapath)
     df <- standardize_columns(df)
+    df$datetime <- as.POSIXct(df$datetime)  # Ensure datetime is in correct format
     df
   })
   
@@ -196,15 +198,15 @@ server <- function(input, output, session) {
     
     selected_vars <- input$variables
     data <- dataset() %>% 
-      filter(as.POSIXct(datetime) >= input$dateRange[1] & as.POSIXct(datetime) <= input$dateRange[2]) %>% 
-      select(all_of(c("datetime", selected_vars)))
+      filter(datetime >= input$dateRange[1] & datetime <= input$dateRange[2]) %>% 
+      select(datetime, all_of(selected_vars))
     
     data_long <- pivot_longer(data, cols = -datetime, names_to = "Variable", values_to = "Value")
     
     y_label <- if (length(selected_vars) == 1) selected_vars[1] else "Selected Variables"
     title <- paste("Relation of", paste(selected_vars, collapse = ", "), "to Date and Time")
     
-    p <- ggplot(data_long, aes(x = as.POSIXct(datetime), y = Value, color = Variable)) +
+    p <- ggplot(data_long, aes(x = datetime, y = Value, color = Variable)) +
       geom_line(size = 1) +
       theme_minimal() +
       labs(title = title, x = "Date and Time", y = y_label)
@@ -234,23 +236,19 @@ server <- function(input, output, session) {
     req(input$overviewVariables, input$summaryDateRange)
     
     data <- dataset() %>% 
-      filter(as.POSIXct(datetime) >= input$summaryDateRange[1] & as.POSIXct(datetime) <= input$summaryDateRange[2])
+      filter(datetime >= input$summaryDateRange[1] & datetime <= input$summaryDateRange[2]) %>%
+      select(all_of(input$overviewVariables))
     
     summary_table <- lapply(input$overviewVariables, function(var) {
-      stats <- data %>%
-        select(var) %>%
-        summarise(
-          Mean = mean(.data[[var]], na.rm = TRUE),
-          Std_Dev = sd(.data[[var]], na.rm = TRUE),
-          Min = min(.data[[var]], na.rm = TRUE),
-                    max(.data[[var]], na.rm = TRUE)
-        )
-      stats <- as.data.frame(stats)
-      stats$Variable <- var
-      stats
+      stats <- data %>% summarise(
+        Mean = mean(.data[[var]], na.rm = TRUE),
+        Std_Dev = sd(.data[[var]], na.rm = TRUE),
+        Min = min(.data[[var]], na.rm = TRUE),
+        Max = max(.data[[var]], na.rm = TRUE)
+      )
+      cbind(Variable = var, as.data.frame(stats))
     })
     summary_table <- do.call(rbind, summary_table)
-    summary_table <- summary_table[, c("Variable", "Mean", "Std_Dev", "Min", "Max")]
     summary_table
   }, rownames = FALSE)
   
@@ -262,11 +260,11 @@ server <- function(input, output, session) {
     title <- paste("Comparison of", selected_vars, "Over Time")
     
     data <- dataset() %>%
-      filter(as.POSIXct(datetime) >= input$summaryDateRange[1] & as.POSIXct(datetime) <= input$summaryDateRange[2]) %>%
+      filter(datetime >= input$summaryDateRange[1] & datetime <= input$summaryDateRange[2]) %>%
       select(datetime, all_of(input$overviewVariables)) %>%
       pivot_longer(-datetime, names_to = "Variable", values_to = "Value")
     
-    p <- ggplot(data, aes(x = as.POSIXct(datetime), y = Value, color = Variable)) +
+    p <- ggplot(data, aes(x = datetime, y = Value, color = Variable)) +
       geom_point(size = 1) +
       theme_minimal() +
       labs(title = title, x = "Date and Time", y = y_label)
@@ -282,7 +280,7 @@ server <- function(input, output, session) {
     title <- paste("Boxplot Comparison of", selected_vars)
     
     data <- dataset() %>%
-      filter(as.POSIXct(datetime) >= input$summaryDateRange[1] & as.POSIXct(datetime) <= input$summaryDateRange[2]) %>%
+      filter(datetime >= input$summaryDateRange[1] & datetime <= input$summaryDateRange[2]) %>%
       select(all_of(input$overviewVariables)) %>%
       pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value")
     
@@ -303,7 +301,7 @@ server <- function(input, output, session) {
     title <- paste("Histogram of", selected_vars)
     
     data <- dataset() %>%
-      filter(as.POSIXct(datetime) >= input$summaryDateRange[1] & as.POSIXct(datetime) <= input$summaryDateRange[2]) %>%
+      filter(datetime >= input$summaryDateRange[1] & datetime <= input$summaryDateRange[2]) %>%
       select(all_of(input$overviewVariables)) %>%
       pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value")
     
