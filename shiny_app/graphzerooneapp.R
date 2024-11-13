@@ -77,8 +77,6 @@ ui <- fluidPage(
       .sidebar { background-color: #f7f7f7; padding: 20px; border-radius: 10px; }
       .main-panel { background-color: #ffffff; padding: 20px; border-radius: 10px; box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.1); }
       .data-title { font-size: 1.5em; font-weight: bold; color: #333; }
-      .summary-stats { font-size: 1.2em; font-weight: bold; margin-bottom: 10px; }
-      .select-input { margin-bottom: 15px; }
     "))
   ),
   
@@ -91,13 +89,29 @@ ui <- fluidPage(
           class = "sidebar",
           fileInput("file", "Upload CSV File", accept = c(".csv")),
           uiOutput("variableSelect"),
-          dateInput("startDate", "Start Date:", value = NULL),
-          dateInput("endDate", "End Date:", value = NULL),
+          
+          # Add radio button to select date input method
+          radioButtons("dateInputMethod", "Choose Date Input Method:",
+                       choices = c("Use Date Inputs" = "dateInputs", "Use Slider" = "slider"), 
+                       selected = "dateInputs"),
+          
+          # Conditional UI for Date Inputs
+          conditionalPanel(
+            condition = "input.dateInputMethod == 'dateInputs'",
+            dateInput("startDate", "Start Date:", value = NULL),
+            dateInput("endDate", "End Date:", value = NULL)
+          ),
+          
+          # Conditional UI for Slider
+          conditionalPanel(
+            condition = "input.dateInputMethod == 'slider'",
+            uiOutput("sliderMenu")
+          ),
+          
           actionButton("goButton", "Go", class = "btn btn-primary btn-lg"),
-          actionButton("resetButton", "Reset", class = "btn btn-secondary btn-lg"),
-          br(), br(),
-          uiOutput("sliderMenu")
+          actionButton("resetButton", "Reset", class = "btn btn-secondary btn-lg")
         ),
+        
         mainPanel(
           class = "main-panel",
           h3("Uploaded Data"),
@@ -138,9 +152,9 @@ server <- function(input, output, session) {
   
   observeEvent(input$resetButton, {
     updateCheckboxGroupInput(session, "variables", selected = character(0))
-    updateCheckboxGroupInput(session, "overviewVariables", selected = character(0))
     updateDateInput(session, "startDate", value = NULL)
     updateDateInput(session, "endDate", value = NULL)
+    updateSliderInput(session, "dateRange", value = NULL)
   })
   
   dataset <- reactive({
@@ -163,7 +177,6 @@ server <- function(input, output, session) {
   })
   
   output$sliderMenu <- renderUI({
-    req(input$goButton > 0)
     req(dataset())
     
     datetime_vals <- dataset()$datetime
@@ -176,37 +189,32 @@ server <- function(input, output, session) {
                 timeFormat = "%Y-%m-%d %H:%M:%S")
   })
   
-  observeEvent(dataset(), {
-    req(dataset())
-    datetime_vals <- dataset()$datetime
-    min_date <- min(datetime_vals, na.rm = TRUE)
-    max_date <- max(datetime_vals, na.rm = TRUE)
-    
-    # Update both the Date Inputs and Slider Input when the dataset changes
-    updateDateInput(session, "startDate", value = format(min_date, "%Y-%m-%d"))
-    updateDateInput(session, "endDate", value = format(max_date, "%Y-%m-%d"))
-    
-    updateSliderInput(session, "summaryDateRange", 
-                      min = as.POSIXct(min_date), max = as.POSIXct(max_date), 
-                      value = c(as.POSIXct(min_date), as.POSIXct(max_date)))
-  })
-
   output$plot <- renderPlotly({
     req(input$goButton > 0)
     req(input$variables)
     
-    # Get the datetime range and ensure start and end date inputs are valid
-    start_date <- as.POSIXct(input$startDate)
-    end_date <- as.POSIXct(input$endDate)
-    
-    if (is.na(start_date) || is.na(end_date) || start_date >= end_date) {
-      return(NULL)  # If the dates are invalid, do not plot
+    # Filter data based on the selected date input method
+    if (input$dateInputMethod == "dateInputs") {
+      start_date <- as.POSIXct(input$startDate)
+      end_date <- as.POSIXct(input$endDate)
+      
+      if (is.na(start_date) || is.na(end_date) || start_date >= end_date) {
+        return(NULL)  # If dates are invalid, do not plot
+      }
+      
+      data <- dataset() %>% 
+        filter(datetime >= start_date & datetime <= end_date)
+      
+    } else if (input$dateInputMethod == "slider") {
+      start_date <- as.POSIXct(input$dateRange[1])
+      end_date <- as.POSIXct(input$dateRange[2])
+      
+      data <- dataset() %>% 
+        filter(datetime >= start_date & datetime <= end_date)
     }
-
+    
     selected_vars <- input$variables
-    data <- dataset() %>%
-      filter(datetime >= start_date & datetime <= end_date) %>%
-      select(datetime, all_of(selected_vars))
+    data <- data %>% select(datetime, all_of(selected_vars))
     
     if (nrow(data) == 0) {
       return(NULL)  # No data to plot
@@ -243,19 +251,6 @@ server <- function(input, output, session) {
                 timeFormat = "%Y-%m-%d %H:%M:%S")
   })
   
-  # Ensure the summary date range slider updates the date input fields correctly
-  observeEvent(input$summaryDateRange, {
-    req(input$summaryDateRange)
-
-    # Debugging: Print the new values
-    print(paste("Slider Start Date:", format(as.POSIXct(input$summaryDateRange[1]), "%Y-%m-%d")))
-    print(paste("Slider End Date:", format(as.POSIXCt(input$summaryDateRange[2]), "%Y-%m-%d")))
-
-    # Update start and end date fields based on the slider's values
-    updateDateInput(session, "startDate", value = format(as.POSIXct(input$summaryDateRange[1]), "%Y-%m-%d"))
-    updateDateInput(session, "endDate", value = format(as.POSIXct(input$summaryDateRange[2]), "%Y-%m-%d"))
-  })
-  
   output$summaryStatsTable <- renderTable({
     req(input$overviewVariables, input$summaryDateRange)
     
@@ -270,7 +265,7 @@ server <- function(input, output, session) {
           Mean = mean(.data[[var]], na.rm = TRUE),
           Std_Dev = sd(.data[[var]], na.rm = TRUE),
           Min = min(.data[[var]], na.rm = TRUE),
-          Max = max(.data[[var]], na.rm = TRUE)
+                    max(.data[[var]], na.rm = TRUE)
         )
       stats <- as.data.frame(stats)
       stats$Variable <- var
