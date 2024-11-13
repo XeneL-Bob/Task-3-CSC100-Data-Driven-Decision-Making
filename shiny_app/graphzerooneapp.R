@@ -6,11 +6,9 @@ library(plotly)
 library(tidyr)
 library(DT)
 
-# To Define mappings for user-friendly labels and column names
+# Define mappings for user-friendly labels and column names
 column_mappings <- list(
   datetime = c("datetime", "date_time"),
-  
-  # Atmos_Aggregated.csv
   airTemperature = "Air Temperature",
   airTemperatureDiff = "Air Temperature Difference",
   atmosphericPressure = "Atmospheric Pressure",
@@ -25,48 +23,30 @@ column_mappings <- list(
   windSpeedDiff = "Wind Speed Difference",
   windDirection = "Wind Direction",
   windDirectionDiff = "Wind Direction Difference",
-  
-  # DingTek_Aggregated.csv
   battery = "Battery Level",
   peopleCount = "People Count",
   nonNegPeopleCount = "Non-negative People Count",
-  
-  # Farmo_Aggregated.csv
   count1 = "Count 1",
   nonNegDifCount1 = "Non-negative Difference Count 1",
   count2 = "Count 2",
   nonNegDifCount2 = "Non-negative Difference Count 2",
   activity = "Activity Level",
   nonNegDigActivity = "Non-negative Activity Level",
-  
-  # Milesight_Aggregated.csv
   peopleIn = "People In",
   peopleOut = "People Out",
-  
-  # NCount_Aggregated.csv
   new = "New Events",
   newDiff = "New Difference",
   current = "Current Events",
   currentDiff = "Current Difference",
   total = "Total Events",
   totalDiff = "Total Difference",
-  
-  # R712_Aggregated.csv
   batteryDiff = "Battery Difference",
   humidity = "Humidity",
   humidityDiff = "Humidity Difference",
   temperature = "Temperature",
   temperatureDiff = "Temperature Difference",
-  
-  # R718b140_Aggregated.csv
-  batteryDiff = "Battery Difference",
-  temperature = "Temperature",
-  temperatureDiff = "Temperature Difference",
-  
-  # SMT100a_Aggregated.csv
   soilMoisture = "Soil Moisture",
-  soilMoistureDiff = "Soil Moisture Difference",
-  temperatureDiff = "Temperature Difference"
+  soilMoistureDiff = "Soil Moisture Difference"
 )
 
 # Helper function to clean and standardize column names
@@ -88,7 +68,7 @@ standardize_columns <- function(df) {
   return(df)
 }
 
-# To Define the UI for the app with tabs
+# Define the UI for the app with tabs
 ui <- fluidPage(
   theme = shinytheme("cosmo"),
   
@@ -111,6 +91,8 @@ ui <- fluidPage(
           class = "sidebar",
           fileInput("file", "Upload CSV File", accept = c(".csv")),
           uiOutput("variableSelect"),
+          dateInput("startDate", "Start Date:", value = NULL),
+          dateInput("endDate", "End Date:", value = NULL),
           actionButton("goButton", "Go", class = "btn btn-primary btn-lg"),
           actionButton("resetButton", "Reset", class = "btn btn-secondary btn-lg"),
           br(), br(),
@@ -151,20 +133,21 @@ ui <- fluidPage(
   )
 )
 
-# To Define server logic
+# Define server logic
 server <- function(input, output, session) {
   
   observeEvent(input$resetButton, {
     updateCheckboxGroupInput(session, "variables", selected = character(0))
     updateCheckboxGroupInput(session, "overviewVariables", selected = character(0))
-    updateSliderInput(session, "dateRange", value = NULL)
-    updateSliderInput(session, "summaryDateRange", value = NULL)
+    updateDateInput(session, "startDate", value = NULL)
+    updateDateInput(session, "endDate", value = NULL)
   })
   
   dataset <- reactive({
     req(input$file)
     df <- read.csv(input$file$datapath)
     df <- standardize_columns(df)
+    df$datetime <- as.POSIXct(df$datetime)  # Ensure datetime is in correct format
     df
   })
   
@@ -193,22 +176,48 @@ server <- function(input, output, session) {
                 timeFormat = "%Y-%m-%d %H:%M:%S")
   })
   
+  observeEvent(dataset(), {
+    req(dataset())
+    datetime_vals <- dataset()$datetime
+    min_date <- min(datetime_vals, na.rm = TRUE)
+    max_date <- max(datetime_vals, na.rm = TRUE)
+    
+    # Update both the Date Inputs and Slider Input when the dataset changes
+    updateDateInput(session, "startDate", value = format(min_date, "%Y-%m-%d"))
+    updateDateInput(session, "endDate", value = format(max_date, "%Y-%m-%d"))
+    
+    updateSliderInput(session, "summaryDateRange", 
+                      min = as.POSIXct(min_date), max = as.POSIXct(max_date), 
+                      value = c(as.POSIXct(min_date), as.POSIXct(max_date)))
+  })
+
   output$plot <- renderPlotly({
     req(input$goButton > 0)
     req(input$variables)
-    req(input$dateRange)
     
+    # Get the datetime range and ensure start and end date inputs are valid
+    start_date <- as.POSIXct(input$startDate)
+    end_date <- as.POSIXct(input$endDate)
+    
+    if (is.na(start_date) || is.na(end_date) || start_date >= end_date) {
+      return(NULL)  # If the dates are invalid, do not plot
+    }
+
     selected_vars <- input$variables
-    data <- dataset() %>% 
-      filter(as.POSIXct(datetime) >= input$dateRange[1] & as.POSIXct(datetime) <= input$dateRange[2]) %>% 
-      select(all_of(c("datetime", selected_vars)))
+    data <- dataset() %>%
+      filter(datetime >= start_date & datetime <= end_date) %>%
+      select(datetime, all_of(selected_vars))
+    
+    if (nrow(data) == 0) {
+      return(NULL)  # No data to plot
+    }
     
     data_long <- pivot_longer(data, cols = -datetime, names_to = "Variable", values_to = "Value")
     
     y_label <- if (length(selected_vars) == 1) selected_vars[1] else "Selected Variables"
     title <- paste("Relation of", paste(selected_vars, collapse = ", "), "to Date and Time")
     
-    p <- ggplot(data_long, aes(x = as.POSIXct(datetime), y = Value, color = Variable)) +
+    p <- ggplot(data_long, aes(x = datetime, y = Value, color = Variable)) +
       geom_line(size = 1) +
       theme_minimal() +
       labs(title = title, x = "Date and Time", y = y_label)
@@ -234,11 +243,25 @@ server <- function(input, output, session) {
                 timeFormat = "%Y-%m-%d %H:%M:%S")
   })
   
+  # Ensure the summary date range slider updates the date input fields correctly
+  observeEvent(input$summaryDateRange, {
+    req(input$summaryDateRange)
+
+    # Debugging: Print the new values
+    print(paste("Slider Start Date:", format(as.POSIXct(input$summaryDateRange[1]), "%Y-%m-%d")))
+    print(paste("Slider End Date:", format(as.POSIXCt(input$summaryDateRange[2]), "%Y-%m-%d")))
+
+    # Update start and end date fields based on the slider's values
+    updateDateInput(session, "startDate", value = format(as.POSIXct(input$summaryDateRange[1]), "%Y-%m-%d"))
+    updateDateInput(session, "endDate", value = format(as.POSIXct(input$summaryDateRange[2]), "%Y-%m-%d"))
+  })
+  
   output$summaryStatsTable <- renderTable({
     req(input$overviewVariables, input$summaryDateRange)
     
     data <- dataset() %>% 
-      filter(as.POSIXct(datetime) >= input$summaryDateRange[1] & as.POSIXct(datetime) <= input$summaryDateRange[2])
+      filter(datetime >= as.POSIXct(input$summaryDateRange[1]) & 
+             datetime <= as.POSIXct(input$summaryDateRange[2]))
     
     summary_table <- lapply(input$overviewVariables, function(var) {
       stats <- data %>%
@@ -266,11 +289,12 @@ server <- function(input, output, session) {
     title <- paste("Comparison of", selected_vars, "Over Time")
     
     data <- dataset() %>%
-      filter(as.POSIXct(datetime) >= input$summaryDateRange[1] & as.POSIXct(datetime) <= input$summaryDateRange[2]) %>%
+      filter(datetime >= as.POSIXct(input$summaryDateRange[1]) & 
+             datetime <= as.POSIXct(input$summaryDateRange[2])) %>%
       select(datetime, all_of(input$overviewVariables)) %>%
       pivot_longer(-datetime, names_to = "Variable", values_to = "Value")
     
-    p <- ggplot(data, aes(x = as.POSIXct(datetime), y = Value, color = Variable)) +
+    p <- ggplot(data, aes(x = datetime, y = Value, color = Variable)) +
       geom_point(size = 1) +
       theme_minimal() +
       labs(title = title, x = "Date and Time", y = y_label)
@@ -286,7 +310,8 @@ server <- function(input, output, session) {
     title <- paste("Boxplot Comparison of", selected_vars)
     
     data <- dataset() %>%
-      filter(as.POSIXct(datetime) >= input$summaryDateRange[1] & as.POSIXct(datetime) <= input$summaryDateRange[2]) %>%
+      filter(datetime >= as.POSIXct(input$summaryDateRange[1]) & 
+             datetime <= as.POSIXct(input$summaryDateRange[2])) %>%
       select(all_of(input$overviewVariables)) %>%
       pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value")
     
@@ -307,7 +332,8 @@ server <- function(input, output, session) {
     title <- paste("Histogram of", selected_vars)
     
     data <- dataset() %>%
-      filter(as.POSIXct(datetime) >= input$summaryDateRange[1] & as.POSIXct(datetime) <= input$summaryDateRange[2]) %>%
+      filter(datetime >= as.POSIXct(input$summaryDateRange[1]) & 
+             datetime <= as.POSIXct(input$summaryDateRange[2])) %>%
       select(all_of(input$overviewVariables)) %>%
       pivot_longer(cols = everything(), names_to = "Variable", values_to = "Value")
     
