@@ -9,5 +9,4 @@ Project_Root/
 │   └── app.R                     # Main Shiny application code
 │
 └── docs/                         # Documentation and project details
-    ├── README.md                 # Overview and instructions
-    └── requirements.txt          # List of dependencies
+    ├── README.md                 # Overview and instructions and list of dependencies

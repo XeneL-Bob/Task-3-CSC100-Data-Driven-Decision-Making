@@ -3,7 +3,8 @@ node_modules/
 dist/
 build/
 .cache/
-
+Sensor_Mapping_tabble.cvs/
+assets/
 # Ignore log files
 npm-debug.log*
 yarn-debug.log*
