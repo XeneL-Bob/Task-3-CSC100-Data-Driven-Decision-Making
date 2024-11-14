@@ -8,5 +8,5 @@ Project_Root/
 ├── shiny_app/                    # Folder for the Shiny application
 │   └── app.R                     # Main Shiny application code
 │
-└── docs/                         # Documentation and project details
-    ├── README.md                 # Overview and instructions and list of dependencies
+├── docs/                         # Documentation and project details
+└── README.md                     # Overview, instructions, and list of dependencies
