@@ -32,3 +32,5 @@ Sensor_Mapping_Table.csv
 
 # Exclude the assets folder and all its contents
 assets/
+
+rsconnect/
